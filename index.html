@@ -28,7 +28,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Kesan cermin */
+            /* Kita akan handle mirroring dalam kod drawing canvas */
         }
         #hidden-video {
             display: none;
@@ -53,7 +53,7 @@
             overflow-y: hidden;
             text-align: center;
             pointer-events: none;
-            mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+            mask-image: linear-gradient(to bottom, transparent, black 20%; black 80%; transparent);
         }
         #prompter-text {
             white-space: pre-wrap;
@@ -73,7 +73,7 @@
     <div class="max-w-6xl mx-auto">
         <header class="mb-6 text-center">
             <h1 class="text-3xl font-bold text-blue-400">Pro Prompter & Recorder</h1>
-            <p class="text-gray-400 text-sm">Versi Latar Belakang Tersuai</p>
+            <p class="text-gray-400 text-sm">Versi Latar Belakang Tersuai (Ultra HD)</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -166,6 +166,7 @@
                         <select id="video-res" class="w-full bg-slate-800 p-2 rounded border border-slate-600 text-sm text-yellow-400">
                             <option value="720">HD (720p)</option>
                             <option value="1080">Full HD (1080p)</option>
+                            <option value="2000">Ultra HD (2000p)</option>
                         </select>
                     </div>
 
@@ -254,9 +255,17 @@
             };
 
             try {
+                // Berhenti stream sedia ada jika ada
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
                 
+                // Pastikan video sedang dimainkan
+                await video.play();
+
                 return new Promise((resolve) => {
                     video.onloadedmetadata = () => {
                         canvas.width = video.videoWidth;
@@ -264,21 +273,35 @@
                         startRendering();
                         resolve(true);
                     };
+                    // Fallback jika loadedmetadata sudah berlaku
+                    if (video.readyState >= 2) {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        startRendering();
+                        resolve(true);
+                    }
                 });
             } catch (err) {
-                showToast("Akses kamera atau mikrofon ditolak.");
+                console.error(err);
+                showToast("Akses kamera atau mikrofon gagal.");
                 return false;
             }
         }
 
         // Loop untuk melukis video dan background ke canvas
         function startRendering() {
+            if (renderLoopId) cancelAnimationFrame(renderLoopId);
+
             function render() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Simpan keadaan asal
+                ctx.save();
                 
+                // Mirror effect
+                ctx.scale(-1, 1);
+                ctx.translate(-canvas.width, 0);
+
                 // Lukis latar belakang jika ada
                 if (bgImage) {
-                    // Kira aspect ratio untuk "cover"
                     const canvasRatio = canvas.width / canvas.height;
                     const imgRatio = bgImage.width / bgImage.height;
                     let drawW, drawH, drawX, drawY;
@@ -296,22 +319,22 @@
                     }
                     ctx.drawImage(bgImage, drawX, drawY, drawW, drawH);
                 } else {
-                    // Default hitam jika tiada imej
                     ctx.fillStyle = '#000';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
 
-                // Lukis video di atas background (atau ganti jika anda mahu kesan lain)
-                // Nota: Ini hanyalah lapisan, bukan pembuangan latar belakang AI.
+                // Lukis video di atas background
+                // Jika ingin "green screen" AI, memerlukan pemprosesan piksel, tetapi di sini kita lukis video terus.
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+                ctx.restore();
                 renderLoopId = requestAnimationFrame(render);
             }
             render();
         }
 
         function closeCamera() {
-            cancelAnimationFrame(renderLoopId);
+            if (renderLoopId) cancelAnimationFrame(renderLoopId);
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
@@ -380,7 +403,7 @@
 
             recordedChunks = [];
             
-            // Tangkap stream dari canvas supaya latar belakang ikut dirakam
+            // Tangkap stream dari canvas supaya imej/video ikut dirakam
             const canvasStream = canvas.captureStream(30);
             const audioTrack = stream.getAudioTracks()[0];
             if (audioTrack) canvasStream.addTrack(audioTrack);
@@ -402,7 +425,7 @@
                 downloadBtn.onclick = () => {
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `rakaman_bg_${new Date().getTime()}.webm`;
+                    a.download = `rakaman_hd_${new Date().getTime()}.webm`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -425,7 +448,7 @@
 
         stopBtn.onclick = () => {
             if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-            closeCamera();
+            // Jangan tutup kamera terus supaya pengguna boleh lihat preview
             resetScroll();
             clearInterval(timerInterval);
             startBtn.disabled = false;
@@ -441,8 +464,15 @@
             timerDisplay.classList.add('hidden');
             recordedChunks = [];
             downloadBtn.disabled = true;
+            // Kosongkan canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             showToast("Sedia semula.");
         };
+
+        // Mulakan kamera secara automatik pada permulaan
+        window.addEventListener('load', () => {
+            openCamera();
+        });
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
