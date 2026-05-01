@@ -78,13 +78,19 @@
             <div class="lg:col-span-2 space-y-4">
                 <div id="video-container">
                     <video id="preview" autoplay muted playsinline></video>
+                    
+                    <!-- Timer / Stopwatch Overlay -->
+                    <div id="timer-display" class="absolute top-4 left-4 bg-black/60 px-4 py-2 rounded-lg border border-white/20 font-mono text-xl text-white hidden z-10">
+                        00:00:00
+                    </div>
+
                     <div id="prompter-overlay">
                         <div id="prompter-scroll">
                             <div id="prompter-text" class="pt-[30%] pb-[30%]">Sila masukkan teks anda di ruangan bawah...</div>
                         </div>
                     </div>
                     <!-- Penunjuk Status -->
-                    <div id="recording-status" class="hidden absolute top-4 right-4 flex items-center space-x-2 bg-red-600 px-3 py-1 rounded-full animate-pulse">
+                    <div id="recording-status" class="hidden absolute top-4 right-4 flex items-center space-x-2 bg-red-600 px-3 py-1 rounded-full animate-pulse z-10">
                         <div class="w-3 h-3 bg-white rounded-full"></div>
                         <span class="text-xs font-bold uppercase">Merakam</span>
                     </div>
@@ -186,6 +192,7 @@
         const fontSelect = document.getElementById('font-family');
         const resSelect = document.getElementById('video-res');
         const recordingStatus = document.getElementById('recording-status');
+        const timerDisplay = document.getElementById('timer-display');
 
         const GOOGLE_DRIVE_LINK = "https://drive.google.com/drive/folders/1z8CaYkrPMraN2LFSv7DujsFBi7JP8IJ_?usp=sharing";
 
@@ -194,6 +201,10 @@
         let scrollInterval;
         let scrollPos = 0;
         let stream;
+        
+        // Timer Variables
+        let startTime;
+        let timerInterval;
 
         // Inisialisasi Kamera
         async function initCamera() {
@@ -265,6 +276,34 @@
             prompterScroll.scrollTop = 0;
         }
 
+        // Timer / Stopwatch Logic
+        function updateTimer() {
+            const now = Date.now();
+            const diff = now - startTime;
+            
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            
+            const hDisplay = hours.toString().padStart(2, '0');
+            const mDisplay = minutes.toString().padStart(2, '0');
+            const sDisplay = seconds.toString().padStart(2, '0');
+            
+            timerDisplay.innerText = `${hDisplay}:${mDisplay}:${sDisplay}`;
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            timerDisplay.innerText = "00:00:00";
+            timerDisplay.classList.remove('hidden');
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            // Timer kekal dipaparkan sehingga rakaman baru bermula
+        }
+
         // Logik Rakaman
         startBtn.onclick = () => {
             recordedChunks = [];
@@ -302,6 +341,7 @@
 
             mediaRecorder.start();
             startScrolling();
+            startTimer();
             
             startBtn.disabled = true;
             stopBtn.disabled = false;
@@ -312,6 +352,7 @@
         stopBtn.onclick = () => {
             mediaRecorder.stop();
             clearInterval(scrollInterval);
+            stopTimer();
             
             startBtn.disabled = false;
             stopBtn.disabled = true;
