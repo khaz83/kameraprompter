@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pro Video Recorder & Teleprompter</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Merriweather:wght@400;700&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Merriweather:wght@400;700&family=Roboto+Mono:wght@400;700&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
             background-color: #0f172a;
@@ -149,9 +149,12 @@
                     <button id="reset-btn" class="bg-slate-600 hover:bg-slate-700 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
                         Reset
                     </button>
-                    <button id="download-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
-                        Simpan Rakaman
-                    </button>
+                    <div class="flex flex-col gap-2">
+                        <button id="download-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
+                            Simpan Rakaman
+                        </button>
+                        <a href="https://drive.google.com/drive/folders/1z8CaYkrPMraN2LFSv7DujsFBi7JP8IJ_?usp=drive_link" target="_blank" class="text-[10px] text-center text-blue-400 hover:underline">Muat Naik ke Google Drive</a>
+                    </div>
                 </div>
             </div>
 
@@ -161,7 +164,10 @@
                         Latar Belakang
                     </h2>
                     <input type="file" id="bg-upload" accept="image/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-pink-600 file:text-white hover:file:bg-pink-700 cursor-pointer mb-3">
-                    <button id="clear-bg" class="w-full bg-slate-700 py-1 rounded text-xs hover:bg-slate-600 transition">Kosongkan Latar</button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="set-white-bg" class="bg-white text-black py-1 rounded text-xs font-bold hover:bg-gray-200 transition">Latar Putih</button>
+                        <button id="clear-bg" class="bg-slate-700 py-1 rounded text-xs hover:bg-slate-600 transition">Kosongkan Latar</button>
+                    </div>
                 </div>
 
                 <div class="control-panel p-5 rounded-xl border border-slate-700">
@@ -171,6 +177,14 @@
 
                 <div class="control-panel p-5 rounded-xl border border-slate-700 space-y-4">
                     <h2 class="text-lg font-semibold border-b border-slate-600 pb-2 text-blue-300">Tetapan Visual</h2>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Jenis Tulisan (Font)</label>
+                        <select id="font-family" class="w-full bg-slate-800 p-2 rounded border border-slate-600 text-sm">
+                            <option value="'Open Sans', sans-serif">Sans Serif (Default)</option>
+                            <option value="'Merriweather', serif">Serif (Klasik)</option>
+                            <option value="'Roboto Mono', monospace">Monospace (Kod)</option>
+                        </select>
+                    </div>
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">Saiz Fon: <span id="font-size-val">30</span>px</label>
                         <input type="range" id="font-size" min="16" max="100" value="30" class="w-full">
@@ -210,12 +224,14 @@
         const resetBtn = document.getElementById('reset-btn');
         const downloadBtn = document.getElementById('download-btn');
         const fontSizeInput = document.getElementById('font-size');
+        const fontFamilySelect = document.getElementById('font-family');
         const speedInput = document.getElementById('scroll-speed');
         const resSelect = document.getElementById('video-res');
         const recordingStatus = document.getElementById('recording-status');
         const timerDisplay = document.getElementById('timer-display');
         const bgUpload = document.getElementById('bg-upload');
         const clearBgBtn = document.getElementById('clear-bg');
+        const setWhiteBgBtn = document.getElementById('set-white-bg');
         const maximizeBtn = document.getElementById('maximize-btn');
 
         let mediaRecorder;
@@ -226,6 +242,7 @@
         let startTime;
         let timerInterval;
         let bgImage = null;
+        let bgColor = null;
         let renderLoopId;
 
         // Maximize Functionality
@@ -245,8 +262,9 @@
                     const img = new Image();
                     img.onload = () => {
                         bgImage = img;
-                        showToast("Latar belakang dipasang.");
-                        if (!stream) drawStaticPreview(); // Render once if camera off
+                        bgColor = null;
+                        showToast("Latar belakang imej dipasang.");
+                        if (!stream) drawStaticPreview();
                     };
                     img.src = event.target.result;
                 };
@@ -254,8 +272,16 @@
             }
         });
 
+        setWhiteBgBtn.onclick = () => {
+            bgImage = null;
+            bgColor = "#FFFFFF";
+            showToast("Latar belakang putih ditetapkan.");
+            if (!stream) drawStaticPreview();
+        };
+
         clearBgBtn.onclick = () => {
             bgImage = null;
+            bgColor = null;
             bgUpload.value = '';
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             showToast("Latar belakang dikosongkan.");
@@ -293,9 +319,8 @@
                 stream = null;
             }
             cameraOffMsg.classList.remove('hidden');
-            // Clear canvas but keep background if exists
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (bgImage) drawStaticPreview();
+            drawStaticPreview();
         }
 
         function startRendering() {
@@ -307,6 +332,7 @@
                 ctx.scale(-1, 1);
                 ctx.translate(-canvas.width, 0);
 
+                // Draw background (Color or Image)
                 if (bgImage) {
                     const canvasRatio = canvas.width / canvas.height;
                     const imgRatio = bgImage.width / bgImage.height;
@@ -319,6 +345,9 @@
                         dX = 0; dY = (canvas.height - dH) / 2;
                     }
                     ctx.drawImage(bgImage, dX, dY, dW, dH);
+                } else if (bgColor) {
+                    ctx.fillStyle = bgColor;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
                 } else {
                     ctx.fillStyle = '#000';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -332,10 +361,15 @@
         }
 
         function drawStaticPreview() {
-            if (!bgImage) return;
-            // Set basic canvas size if camera never started
             if (canvas.width === 0) { canvas.width = 1280; canvas.height = 720; }
-            ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+            if (bgImage) {
+                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+            } else if (bgColor) {
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
         }
 
         textInput.addEventListener('input', () => {
@@ -347,6 +381,10 @@
             const val = fontSizeInput.value;
             document.getElementById('font-size-val').innerText = val;
             prompterText.style.fontSize = val + 'px';
+        });
+
+        fontFamilySelect.addEventListener('change', () => {
+            prompterText.style.fontFamily = fontFamilySelect.value;
         });
 
         speedInput.addEventListener('input', () => {
@@ -407,6 +445,7 @@
                     a.href = url;
                     a.download = `prompter_video_${Date.now()}.webm`;
                     a.click();
+                    showToast("Video disimpan. Jangan lupa muat naik ke Drive!");
                 };
             };
 
