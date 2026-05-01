@@ -211,8 +211,8 @@
         let startTime;
         let timerInterval;
 
-        // Inisialisasi Kamera
-        async function initCamera() {
+        // Inisialisasi Kamera (Hanya dipanggil apabila mahu mula rakam)
+        async function openCamera() {
             const height = parseInt(resSelect.value);
             const constraints = {
                 video: {
@@ -224,14 +224,22 @@
             };
 
             try {
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                }
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
+                return true;
             } catch (err) {
                 showToast("Ralat Kamera: Sila beri kebenaran akses.");
                 console.error(err);
+                return false;
+            }
+        }
+
+        // Tutup Kamera
+        function closeCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
             }
         }
 
@@ -250,8 +258,6 @@
         fontSelect.addEventListener('change', () => {
             prompterText.style.fontFamily = fontSelect.value;
         });
-
-        resSelect.addEventListener('change', initCamera);
 
         // Update scroll speed display and restart interval if scrolling
         speedInput.addEventListener('input', () => {
@@ -319,7 +325,10 @@
         }
 
         // Logik Rakaman
-        startBtn.onclick = () => {
+        startBtn.onclick = async () => {
+            const success = await openCamera();
+            if (!success) return;
+
             recordedChunks = [];
             
             try {
@@ -357,13 +366,14 @@
             stopBtn.disabled = false;
             resetBtn.disabled = true;
             recordingStatus.classList.remove('hidden');
-            showToast("Rakaman bermula...");
+            showToast("Kamera diaktifkan & Rakaman bermula...");
         };
 
         stopBtn.onclick = () => {
             if (mediaRecorder && mediaRecorder.state !== "inactive") {
                 mediaRecorder.stop();
             }
+            closeCamera(); // Tutup kamera serta-merta selepas rakaman tamat
             resetScroll();
             stopTimer();
             
@@ -371,11 +381,12 @@
             stopBtn.disabled = true;
             resetBtn.disabled = false;
             recordingStatus.classList.add('hidden');
-            showToast("Rakaman tamat.");
+            showToast("Kamera ditutup & Rakaman tamat.");
         };
 
         resetBtn.onclick = () => {
             resetScroll();
+            closeCamera();
             timerDisplay.innerText = "00:00:00";
             timerDisplay.classList.add('hidden');
             recordedChunks = [];
@@ -389,8 +400,6 @@
             toast.style.opacity = '1';
             setTimeout(() => { toast.style.opacity = '0'; }, 4000);
         }
-
-        window.onload = initCamera;
     </script>
 </body>
 </html>
