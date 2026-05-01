@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pro Video Recorder & Teleprompter</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- TensorFlow.js & Selfie Segmentation -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Merriweather:wght@400;700&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -27,14 +24,11 @@
             overflow: hidden;
             border: 2px solid #334155;
         }
-        #preview, #output-canvas {
+        #preview {
             width: 100%;
             height: 100%;
             object-fit: cover;
             transform: scaleX(-1); /* Kesan cermin */
-        }
-        #preview {
-            display: none; /* Kita guna canvas untuk output virtual background */
         }
         #prompter-overlay {
             position: absolute;
@@ -69,16 +63,6 @@
         input[type="range"] {
             accent-color: #3b82f6;
         }
-        .loading-overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(0,0,0,0.8);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 20;
-        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -86,7 +70,7 @@
     <div class="max-w-6xl mx-auto">
         <header class="mb-6 text-center">
             <h1 class="text-3xl font-bold text-blue-400">Pro Prompter & Recorder</h1>
-            <p class="text-gray-400 text-sm">Sesuai untuk iPad, Smartphone & Desktop</p>
+            <p class="text-gray-400 text-sm">Versi Standard (Tanpa AI)</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -94,13 +78,7 @@
             <!-- Bahagian Utama: Video & Prompter -->
             <div class="lg:col-span-2 space-y-4">
                 <div id="video-container">
-                    <div id="loading-model" class="loading-overlay hidden">
-                        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-                        <p class="text-sm">Memuat turun model AI...</p>
-                    </div>
-                    
                     <video id="preview" autoplay muted playsinline></video>
-                    <canvas id="output-canvas"></canvas>
                     
                     <!-- Timer / Stopwatch Overlay -->
                     <div id="timer-display" class="absolute top-4 left-4 bg-black/60 px-4 py-2 rounded-lg border border-white/20 font-mono text-xl text-white hidden z-10">
@@ -112,6 +90,7 @@
                             <div id="prompter-text" class="pt-[30%] pb-[30%]">Sila masukkan teks anda di ruangan bawah...</div>
                         </div>
                     </div>
+
                     <!-- Penunjuk Status -->
                     <div id="recording-status" class="hidden absolute top-4 right-4 flex items-center space-x-2 bg-red-600 px-3 py-1 rounded-full animate-pulse z-10">
                         <div class="w-3 h-3 bg-white rounded-full"></div>
@@ -133,24 +112,13 @@
                     </button>
                     <button id="download-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
                         <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"></path></svg>
-                        Simpan & Buka Google Drive
+                        Simpan Rakaman
                     </button>
                 </div>
             </div>
 
             <!-- Bahagian Kawalan: Tetapan -->
             <div class="space-y-6">
-                <!-- Virtual Background -->
-                <div class="control-panel p-5 rounded-xl border border-slate-700">
-                    <h2 class="text-lg font-semibold mb-3 border-b border-slate-600 pb-2 text-purple-400">Latar Belakang AI</h2>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button onclick="setEffect('none')" class="bg-slate-800 p-2 rounded text-xs hover:bg-slate-700 border border-slate-600">Asal</button>
-                        <button onclick="setEffect('blur')" class="bg-slate-800 p-2 rounded text-xs hover:bg-slate-700 border border-slate-600">Kabur (Blur)</button>
-                        <button onclick="setEffect('color', '#00ff00')" class="bg-green-800 p-2 rounded text-xs hover:bg-green-700 border border-slate-600">Layar Hijau</button>
-                        <button onclick="setEffect('color', '#0000ff')" class="bg-blue-800 p-2 rounded text-xs hover:bg-blue-700 border border-slate-600">Layar Biru</button>
-                    </div>
-                </div>
-
                 <!-- Editor Teks -->
                 <div class="control-panel p-5 rounded-xl border border-slate-700">
                     <h2 class="text-lg font-semibold mb-3 border-b border-slate-600 pb-2">Teks Prompter</h2>
@@ -187,11 +155,10 @@
                             <option value="720">HD (720p)</option>
                             <option value="1080">Full HD (1080p)</option>
                         </select>
-                        <p class="text-[10px] text-gray-500 mt-1">*Virtual Background lebih lancar pada 720p.</p>
                     </div>
 
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">Warna Background Prompter</label>
+                        <label class="block text-xs text-gray-400 mb-1">Warna Latar Prompter</label>
                         <div class="flex gap-2">
                             <button class="bg-black w-8 h-8 rounded border border-white" onclick="changeBg('rgba(0,0,0,0.5)')"></button>
                             <button class="bg-blue-900 w-8 h-8 rounded border border-white" onclick="changeBg('rgba(30,58,138,0.5)')"></button>
@@ -202,10 +169,6 @@
                 </div>
             </div>
         </div>
-        
-        <footer class="mt-8 text-center text-gray-500 text-xs">
-            Aplikasi ini menggunakan TensorFlow.js Selfie Segmentation.
-        </footer>
     </div>
 
     <div id="toast" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-2 rounded-full shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none z-50">
@@ -214,8 +177,6 @@
 
     <script>
         const video = document.getElementById('preview');
-        const canvas = document.getElementById('output-canvas');
-        const ctx = canvas.getContext('2d');
         const textInput = document.getElementById('text-input');
         const prompterText = document.getElementById('prompter-text');
         const prompterScroll = document.getElementById('prompter-scroll');
@@ -230,58 +191,21 @@
         const resSelect = document.getElementById('video-res');
         const recordingStatus = document.getElementById('recording-status');
         const timerDisplay = document.getElementById('timer-display');
-        const loadingModel = document.getElementById('loading-model');
-
-        const GOOGLE_DRIVE_LINK = "https://drive.google.com/drive/folders/1z8CaYkrPMraN2LFSv7DujsFBi7JP8IJ_?usp=sharing";
 
         let mediaRecorder;
         let recordedChunks = [];
         let scrollInterval;
         let scrollPos = 0;
         let stream;
-        let segmenter;
-        let currentEffect = 'none'; // 'none', 'blur', 'color'
-        let effectColor = '#00ff00';
-        let animationId;
-        
         let startTime;
         let timerInterval;
-
-        // Inisialisasi AI Model
-        async function loadAIModel() {
-            if (segmenter) return;
-            loadingModel.classList.remove('hidden');
-            try {
-                const model = bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation;
-                const segmenterConfig = {
-                    runtime: 'mediapipe',
-                    solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation',
-                    modelType: 'landscape'
-                };
-                segmenter = await bodySegmentation.createSegmenter(model, segmenterConfig);
-                showToast("AI Model berjaya dimuatkan.");
-            } catch (err) {
-                console.error("Gagal muat AI:", err);
-                showToast("Gagal memuat AI latar belakang.");
-            }
-            loadingModel.classList.add('hidden');
-        }
-
-        function setEffect(type, color = null) {
-            currentEffect = type;
-            if (color) effectColor = color;
-            showToast(`Kesan latar: ${type}`);
-            if (type !== 'none' && !segmenter) {
-                loadAIModel();
-            }
-        }
 
         // Kamera Logic
         async function openCamera() {
             const height = parseInt(resSelect.value);
             const constraints = {
                 video: {
-                    width: { ideal: height * 1.77 },
+                    width: { ideal: height * (16/9) },
                     height: { ideal: height },
                     facingMode: "user"
                 },
@@ -291,106 +215,19 @@
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
-                
-                // Tunggu video ready untuk dapatkan dimensi
-                await new Promise((resolve) => {
-                    video.onloadedmetadata = () => {
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        resolve();
-                    };
-                });
-                
-                startProcessing();
                 return true;
             } catch (err) {
-                showToast("Ralat Kamera: Akses ditolak.");
+                showToast("Akses kamera atau mikrofon ditolak.");
                 return false;
             }
         }
 
         function closeCamera() {
-            cancelAnimationFrame(animationId);
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
                 stream = null;
             }
-        }
-
-        // AI Processing Loop
-        async function startProcessing() {
-            if (!stream) return;
-
-            async function process() {
-                if (video.paused || video.ended) return;
-
-                if (currentEffect === 'none' || !segmenter) {
-                    // Biasa
-                    ctx.save();
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    ctx.restore();
-                } else {
-                    // AI Effects
-                    try {
-                        const segmentation = await segmenter.segmentPeople(video);
-                        const mask = await bodySegmentation.toBinaryMask(segmentation);
-
-                        ctx.save();
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                        if (currentEffect === 'blur') {
-                            // Lukis blur background dulu
-                            ctx.filter = 'blur(15px)';
-                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                            ctx.filter = 'none';
-                        } else if (currentEffect === 'color') {
-                            // Lukis warna background
-                            ctx.fillStyle = effectColor;
-                            ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        }
-
-                        // Hanya lukis orang (masking)
-                        const maskCanvas = document.createElement('canvas');
-                        maskCanvas.width = canvas.width;
-                        maskCanvas.height = canvas.height;
-                        const maskCtx = maskCanvas.getContext('2d');
-                        
-                        // Mask data processing
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const pixelData = imageData.data;
-
-                        // Lukis video orang sahaja berdasarkan mask
-                        const tempCanvas = document.createElement('canvas');
-                        tempCanvas.width = canvas.width;
-                        tempCanvas.height = canvas.height;
-                        const tempCtx = tempCanvas.getContext('2d');
-                        tempCtx.drawImage(video, 0, 0);
-                        
-                        const personData = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
-                        
-                        for (let i = 0; i < mask.data.length; i++) {
-                            if (mask.data[i] === 0) { // 0 bermaksud bukan orang (background)
-                                // Biarkan background (blur/color) sedia ada
-                            } else {
-                                // Ganti dengan pixel dari video (orang)
-                                const n = i * 4;
-                                pixelData[n] = personData.data[n];
-                                pixelData[n+1] = personData.data[n+1];
-                                pixelData[n+2] = personData.data[n+2];
-                                pixelData[n+3] = 255;
-                            }
-                        }
-                        ctx.putImageData(imageData, 0, 0);
-                        ctx.restore();
-                    } catch (e) {
-                        console.error(e);
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    }
-                }
-                animationId = requestAnimationFrame(process);
-            }
-            process();
         }
 
         // Prompter Settings
@@ -453,16 +290,11 @@
             if (!success) return;
 
             recordedChunks = [];
-            // Gunakan canvas stream sebagai source rakaman supaya kesan AI ikut sekali
-            const canvasStream = canvas.captureStream(30); 
-            // Tambah audio dari stream kamera asal
-            const audioTrack = stream.getAudioTracks()[0];
-            if (audioTrack) canvasStream.addTrack(audioTrack);
-
+            
             try {
-                mediaRecorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm; codecs=vp9,opus' });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9,opus' });
             } catch (e) {
-                mediaRecorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm' });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
             }
 
             mediaRecorder.ondataavailable = (e) => {
@@ -476,11 +308,10 @@
                 downloadBtn.onclick = () => {
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `rakaman_virtual_${new Date().getTime()}.webm`;
+                    a.download = `rakaman_${new Date().getTime()}.webm`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-                    window.open(GOOGLE_DRIVE_LINK, '_blank');
                     showToast("Muat turun bermula.");
                 };
             };
@@ -495,7 +326,7 @@
             stopBtn.disabled = false;
             resetBtn.disabled = true;
             recordingStatus.classList.remove('hidden');
-            showToast("Rakaman dimulakan...");
+            showToast("Mula merakam...");
         };
 
         stopBtn.onclick = () => {
@@ -525,9 +356,6 @@
             toast.style.opacity = '1';
             setTimeout(() => { toast.style.opacity = '0'; }, 3000);
         }
-
-        // Pre-load model AI di awal untuk kelancaran
-        window.onload = loadAIModel;
     </script>
 </body>
 </html>
