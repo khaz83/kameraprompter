@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Video Recorder & Teleprompter v2</title>
+    <title>Pro Video Recorder & Teleprompter</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Merriweather:wght@400;700&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -25,7 +25,6 @@
             border: 2px solid #334155;
             transition: all 0.3s ease;
         }
-        /* Style untuk Fullscreen */
         #video-container:fullscreen {
             max-width: 100vw;
             width: 100vw;
@@ -33,12 +32,6 @@
             border-radius: 0;
             border: none;
         }
-        #video-container:-webkit-full-screen {
-            max-width: 100vw;
-            width: 100vw;
-            height: 100vh;
-        }
-
         #preview-canvas {
             width: 100%;
             height: 100%;
@@ -72,7 +65,7 @@
         }
         #prompter-text {
             white-space: pre-wrap;
-            line-height: 1.5;
+            line-height: 1.6;
             transition: transform 0.1s linear;
         }
         .control-panel {
@@ -94,6 +87,15 @@
         input[type="range"] {
             accent-color: #3b82f6;
         }
+        .empty-state-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #64748b;
+            text-align: center;
+            z-index: 1;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -101,29 +103,27 @@
     <div class="max-w-6xl mx-auto">
         <header class="mb-6 text-center">
             <h1 class="text-3xl font-bold text-blue-400">Pro Prompter & Recorder</h1>
-            <p class="text-gray-400 text-sm">Sistem Rakaman HD dengan Latar Belakang Tersuai</p>
+            <p class="text-gray-400 text-sm">Kamera diaktifkan hanya semasa rakaman</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <!-- Bahagian Utama: Video & Prompter -->
             <div class="lg:col-span-2 space-y-4">
-                <div id="video-container" class="group">
+                <div id="video-container">
+                    <div id="camera-off-msg" class="empty-state-msg">
+                        <svg class="w-16 h-16 mx-auto mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        <p>Kamera Sedia Untuk Digunakan</p>
+                    </div>
                     <video id="hidden-video" autoplay muted playsinline></video>
                     <canvas id="preview-canvas"></canvas>
                     
-                    <!-- Top Controls Overlay -->
                     <div class="absolute top-4 left-4 right-4 flex justify-between items-start z-20 pointer-events-none">
                         <div id="timer-display" class="bg-black/60 px-4 py-2 rounded-lg border border-white/20 font-mono text-xl text-white hidden">
                             00:00:00
                         </div>
-
-                        <div class="flex space-x-2">
-                            <!-- Button Maximize -->
-                            <button id="maximize-btn" class="video-btn text-white" title="Skrin Penuh">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                            </button>
-                        </div>
+                        <button id="maximize-btn" class="video-btn text-white" title="Skrin Penuh">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                        </button>
                     </div>
 
                     <div id="prompter-overlay">
@@ -132,7 +132,6 @@
                         </div>
                     </div>
 
-                    <!-- Penunjuk Status Merakam -->
                     <div id="recording-status" class="hidden absolute bottom-4 left-4 flex items-center space-x-2 bg-red-600 px-3 py-1 rounded-full animate-pulse z-20">
                         <div class="w-3 h-3 bg-white rounded-full"></div>
                         <span class="text-xs font-bold uppercase">Merakam</span>
@@ -148,49 +147,38 @@
                         Berhenti
                     </button>
                     <button id="reset-btn" class="bg-slate-600 hover:bg-slate-700 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                         Reset
                     </button>
                     <button id="download-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
-                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"></path></svg>
                         Simpan Rakaman
                     </button>
                 </div>
             </div>
 
-            <!-- Bahagian Kawalan: Tetapan -->
             <div class="space-y-6">
-                <!-- Muat Naik Latar Belakang -->
                 <div class="control-panel p-5 rounded-xl border border-slate-700">
                     <h2 class="text-lg font-semibold mb-3 border-b border-slate-600 pb-2 text-pink-400 flex items-center">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                         Latar Belakang
                     </h2>
-                    <label class="block text-xs text-gray-400 mb-2">Gantikan latar belakang video (Overlay):</label>
                     <input type="file" id="bg-upload" accept="image/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-pink-600 file:text-white hover:file:bg-pink-700 cursor-pointer mb-3">
                     <button id="clear-bg" class="w-full bg-slate-700 py-1 rounded text-xs hover:bg-slate-600 transition">Kosongkan Latar</button>
                 </div>
 
-                <!-- Editor Teks -->
                 <div class="control-panel p-5 rounded-xl border border-slate-700">
                     <h2 class="text-lg font-semibold mb-3 border-b border-slate-600 pb-2">Teks Prompter</h2>
                     <textarea id="text-input" class="w-full h-40 bg-slate-800 text-white p-3 rounded-lg border border-slate-600 focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Paste skrip anda di sini..."></textarea>
                 </div>
 
-                <!-- Konfigurasi -->
                 <div class="control-panel p-5 rounded-xl border border-slate-700 space-y-4">
                     <h2 class="text-lg font-semibold border-b border-slate-600 pb-2 text-blue-300">Tetapan Visual</h2>
-                    
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">Saiz Fon: <span id="font-size-val">30</span>px</label>
                         <input type="range" id="font-size" min="16" max="100" value="30" class="w-full">
                     </div>
-
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">Kelajuan Skrol: <span id="scroll-speed-val">30</span></label>
                         <input type="range" id="scroll-speed" min="0" max="100" value="30" class="w-full">
                     </div>
-
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">Resolusi Rakaman</label>
                         <select id="video-res" class="w-full bg-slate-800 p-2 rounded border border-slate-600 text-sm text-yellow-400">
@@ -199,23 +187,13 @@
                             <option value="2160">Ultra HD (4K)</option>
                         </select>
                     </div>
-
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Warna Latar Prompter</label>
-                        <div class="flex gap-2">
-                            <button class="bg-black w-8 h-8 rounded border border-white" onclick="changeBg('rgba(0,0,0,0.5)')"></button>
-                            <button class="bg-blue-900 w-8 h-8 rounded border border-white" onclick="changeBg('rgba(30,58,138,0.5)')"></button>
-                            <button class="bg-slate-700 w-8 h-8 rounded border border-white" onclick="changeBg('rgba(51,65,85,0.5)')"></button>
-                            <button class="bg-transparent w-8 h-8 rounded border border-white flex items-center justify-center text-[10px]" onclick="changeBg('transparent')">Tiada</button>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <div id="toast" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-2 rounded-full shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none z-50">
-        Mesej di sini
+        Mesej
     </div>
 
     <script>
@@ -223,10 +201,10 @@
         const canvas = document.getElementById('preview-canvas');
         const ctx = canvas.getContext('2d');
         const videoContainer = document.getElementById('video-container');
+        const cameraOffMsg = document.getElementById('camera-off-msg');
         const textInput = document.getElementById('text-input');
         const prompterText = document.getElementById('prompter-text');
         const prompterScroll = document.getElementById('prompter-scroll');
-        const prompterOverlay = document.getElementById('prompter-overlay');
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
         const resetBtn = document.getElementById('reset-btn');
@@ -244,33 +222,21 @@
         let recordedChunks = [];
         let scrollInterval;
         let scrollPos = 0;
-        let stream;
+        let stream = null;
         let startTime;
         let timerInterval;
         let bgImage = null;
         let renderLoopId;
 
-        // --- FUNGSI MAXIMIZE / FULLSCREEN ---
+        // Maximize Functionality
         maximizeBtn.onclick = () => {
             if (!document.fullscreenElement) {
-                videoContainer.requestFullscreen().catch(err => {
-                    showToast(`Ralat skrin penuh: ${err.message}`);
-                });
+                videoContainer.requestFullscreen().catch(err => showToast("Gagal skrin penuh"));
             } else {
                 document.exitFullscreen();
             }
         };
 
-        // Update icon butang semasa keluar masuk fullscreen
-        document.addEventListener('fullscreenchange', () => {
-            if (document.fullscreenElement) {
-                maximizeBtn.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
-            } else {
-                maximizeBtn.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>';
-            }
-        });
-
-        // Muat naik imej latar belakang
         bgUpload.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
@@ -279,7 +245,8 @@
                     const img = new Image();
                     img.onload = () => {
                         bgImage = img;
-                        showToast("Latar belakang dikemaskini.");
+                        showToast("Latar belakang dipasang.");
+                        if (!stream) drawStaticPreview(); // Render once if camera off
                     };
                     img.src = event.target.result;
                 };
@@ -290,94 +257,87 @@
         clearBgBtn.onclick = () => {
             bgImage = null;
             bgUpload.value = '';
-            showToast("Latar belakang dipadamkan.");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            showToast("Latar belakang dikosongkan.");
         };
 
-        // Logic Kamera
-        async function openCamera() {
+        async function startCamera() {
             const height = parseInt(resSelect.value);
             const constraints = {
-                video: {
-                    width: { ideal: height * (16/9) },
-                    height: { ideal: height },
-                    facingMode: "user"
-                },
+                video: { width: { ideal: height * (16/9) }, height: { ideal: height }, facingMode: "user" },
                 audio: true
             };
 
             try {
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                }
-
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
+                cameraOffMsg.classList.add('hidden');
                 
                 await video.play();
-
-                video.onloadedmetadata = () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    startRendering();
-                };
-
-                if (video.readyState >= 2) {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    startRendering();
-                }
+                
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                startRendering();
                 return true;
             } catch (err) {
-                console.error(err);
-                showToast("Sila benarkan akses kamera.");
+                showToast("Sila benarkan akses kamera/mikrofon.");
                 return false;
             }
         }
 
-        // Loop Rendering Canvas (Background + Video Mirroring)
+        function stopCamera() {
+            if (renderLoopId) cancelAnimationFrame(renderLoopId);
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
+            }
+            cameraOffMsg.classList.remove('hidden');
+            // Clear canvas but keep background if exists
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (bgImage) drawStaticPreview();
+        }
+
         function startRendering() {
             if (renderLoopId) cancelAnimationFrame(renderLoopId);
 
             function render() {
+                if (!stream) return;
                 ctx.save();
-                
-                // Mirror effect
                 ctx.scale(-1, 1);
                 ctx.translate(-canvas.width, 0);
 
-                // Lukis latar belakang
                 if (bgImage) {
                     const canvasRatio = canvas.width / canvas.height;
                     const imgRatio = bgImage.width / bgImage.height;
-                    let drawW, drawH, drawX, drawY;
-
+                    let dW, dH, dX, dY;
                     if (imgRatio > canvasRatio) {
-                        drawH = canvas.height;
-                        drawW = bgImage.width * (canvas.height / bgImage.height);
-                        drawX = (canvas.width - drawW) / 2;
-                        drawY = 0;
+                        dH = canvas.height; dW = bgImage.width * (canvas.height / bgImage.height);
+                        dX = (canvas.width - dW) / 2; dY = 0;
                     } else {
-                        drawW = canvas.width;
-                        drawH = bgImage.height * (canvas.width / bgImage.width);
-                        drawX = 0;
-                        drawY = (canvas.height - drawH) / 2;
+                        dW = canvas.width; dH = bgImage.height * (canvas.width / bgImage.width);
+                        dX = 0; dY = (canvas.height - dH) / 2;
                     }
-                    ctx.drawImage(bgImage, drawX, drawY, drawW, drawH);
+                    ctx.drawImage(bgImage, dX, dY, dW, dH);
                 } else {
                     ctx.fillStyle = '#000';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
 
-                // Lukis video feed
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
                 ctx.restore();
                 renderLoopId = requestAnimationFrame(render);
             }
             render();
         }
 
-        // Prompter Control
+        function drawStaticPreview() {
+            if (!bgImage) return;
+            // Set basic canvas size if camera never started
+            if (canvas.width === 0) { canvas.width = 1280; canvas.height = 720; }
+            ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        }
+
         textInput.addEventListener('input', () => {
             prompterText.innerText = textInput.value || "Sila masukkan teks anda di ruangan bawah...";
             resetScroll();
@@ -394,23 +354,16 @@
             if (scrollInterval) startScrolling(false);
         });
 
-        function changeBg(color) {
-            prompterOverlay.style.backgroundColor = color;
-        }
-
         function startScrolling(resetPos = true) {
             clearInterval(scrollInterval);
             if (resetPos) scrollPos = 0;
             const speed = parseInt(speedInput.value);
             if (speed === 0) return;
             
-            const step = speed / 15; // Adjustment untuk kelancaran
             scrollInterval = setInterval(() => {
-                scrollPos += step;
+                scrollPos += speed / 15;
                 prompterScroll.scrollTop = scrollPos;
-                if (scrollPos > prompterScroll.scrollHeight + 100) {
-                    scrollPos = -200; // Loop balik ke atas
-                }
+                if (scrollPos > prompterScroll.scrollHeight + 100) scrollPos = -200;
             }, 30);
         }
 
@@ -422,17 +375,15 @@
         }
 
         function updateTimer() {
-            const now = Date.now();
-            const diff = now - startTime;
-            const hours = Math.floor(diff / 3600000).toString().padStart(2, '0');
-            const minutes = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
-            const seconds = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-            timerDisplay.innerText = `${hours}:${minutes}:${seconds}`;
+            const diff = Date.now() - startTime;
+            const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+            const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+            const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+            timerDisplay.innerText = `${h}:${m}:${s}`;
         }
 
-        // Logic Rakaman
         startBtn.onclick = async () => {
-            const success = await openCamera();
+            const success = await startCamera();
             if (!success) return;
 
             recordedChunks = [];
@@ -440,15 +391,8 @@
             const audioTrack = stream.getAudioTracks()[0];
             if (audioTrack) canvasStream.addTrack(audioTrack);
 
-            try {
-                const types = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
-                let selectedType = types.find(t => MediaRecorder.isTypeSupported(t));
-                mediaRecorder = new MediaRecorder(canvasStream, { mimeType: selectedType });
-            } catch (e) {
-                console.error("MediaRecorder fail", e);
-                showToast("Format rakaman tidak disokong.");
-                return;
-            }
+            const mime = ['video/webm;codecs=vp9,opus', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
+            mediaRecorder = new MediaRecorder(canvasStream, { mimeType: mime });
 
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0) recordedChunks.push(e.data);
@@ -461,9 +405,8 @@
                 downloadBtn.onclick = () => {
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `video_prompter_${new Date().getTime()}.webm`;
+                    a.download = `prompter_video_${Date.now()}.webm`;
                     a.click();
-                    showToast("Video disimpan.");
                 };
             };
 
@@ -482,40 +425,30 @@
 
         stopBtn.onclick = () => {
             if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+            stopCamera();
             resetScroll();
             clearInterval(timerInterval);
             startBtn.disabled = false;
             stopBtn.disabled = true;
             resetBtn.disabled = false;
             recordingStatus.classList.add('hidden');
-            showToast("Rakaman dihentikan.");
+            showToast("Kamera ditutup & rakaman tamat.");
         };
 
         resetBtn.onclick = () => {
             resetScroll();
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                video.srcObject = null;
-                stream = null;
-            }
+            stopCamera();
             timerDisplay.classList.add('hidden');
             recordedChunks = [];
             downloadBtn.disabled = true;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            showToast("Sistem direset.");
-            openCamera(); // Re-open preview
+            showToast("Sedia semula.");
         };
-
-        // Inisialisasi
-        window.addEventListener('load', () => {
-            openCamera();
-        });
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
             toast.innerText = msg;
             toast.style.opacity = '1';
-            setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+            setTimeout(() => toast.style.opacity = '0', 3000);
         }
     </script>
 </body>
