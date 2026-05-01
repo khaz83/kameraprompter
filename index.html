@@ -24,11 +24,14 @@
             overflow: hidden;
             border: 2px solid #334155;
         }
-        #preview {
+        #preview-canvas {
             width: 100%;
             height: 100%;
             object-fit: cover;
             transform: scaleX(-1); /* Kesan cermin */
+        }
+        #hidden-video {
+            display: none;
         }
         #prompter-overlay {
             position: absolute;
@@ -70,7 +73,7 @@
     <div class="max-w-6xl mx-auto">
         <header class="mb-6 text-center">
             <h1 class="text-3xl font-bold text-blue-400">Pro Prompter & Recorder</h1>
-            <p class="text-gray-400 text-sm">Versi Standard (Tanpa AI)</p>
+            <p class="text-gray-400 text-sm">Versi Latar Belakang Tersuai</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -78,7 +81,8 @@
             <!-- Bahagian Utama: Video & Prompter -->
             <div class="lg:col-span-2 space-y-4">
                 <div id="video-container">
-                    <video id="preview" autoplay muted playsinline></video>
+                    <video id="hidden-video" autoplay muted playsinline></video>
+                    <canvas id="preview-canvas"></canvas>
                     
                     <!-- Timer / Stopwatch Overlay -->
                     <div id="timer-display" class="absolute top-4 left-4 bg-black/60 px-4 py-2 rounded-lg border border-white/20 font-mono text-xl text-white hidden z-10">
@@ -119,6 +123,14 @@
 
             <!-- Bahagian Kawalan: Tetapan -->
             <div class="space-y-6">
+                <!-- Muat Naik Latar Belakang -->
+                <div class="control-panel p-5 rounded-xl border border-slate-700">
+                    <h2 class="text-lg font-semibold mb-3 border-b border-slate-600 pb-2 text-pink-400">Latar Belakang Video</h2>
+                    <label class="block text-xs text-gray-400 mb-2">Muat naik imej (.jpg, .png):</label>
+                    <input type="file" id="bg-upload" accept="image/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-pink-600 file:text-white hover:file:bg-pink-700 cursor-pointer mb-3">
+                    <button id="clear-bg" class="w-full bg-slate-700 py-1 rounded text-xs hover:bg-slate-600">Kosongkan Latar</button>
+                </div>
+
                 <!-- Editor Teks -->
                 <div class="control-panel p-5 rounded-xl border border-slate-700">
                     <h2 class="text-lg font-semibold mb-3 border-b border-slate-600 pb-2">Teks Prompter</h2>
@@ -176,7 +188,9 @@
     </div>
 
     <script>
-        const video = document.getElementById('preview');
+        const video = document.getElementById('hidden-video');
+        const canvas = document.getElementById('preview-canvas');
+        const ctx = canvas.getContext('2d');
         const textInput = document.getElementById('text-input');
         const prompterText = document.getElementById('prompter-text');
         const prompterScroll = document.getElementById('prompter-scroll');
@@ -191,6 +205,8 @@
         const resSelect = document.getElementById('video-res');
         const recordingStatus = document.getElementById('recording-status');
         const timerDisplay = document.getElementById('timer-display');
+        const bgUpload = document.getElementById('bg-upload');
+        const clearBgBtn = document.getElementById('clear-bg');
 
         let mediaRecorder;
         let recordedChunks = [];
@@ -199,6 +215,31 @@
         let stream;
         let startTime;
         let timerInterval;
+        let bgImage = null;
+        let renderLoopId;
+
+        // Muat naik imej latar belakang
+        bgUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        bgImage = img;
+                        showToast("Latar belakang ditukar.");
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        clearBgBtn.onclick = () => {
+            bgImage = null;
+            bgUpload.value = '';
+            showToast("Latar belakang dikosongkan.");
+        };
 
         // Kamera Logic
         async function openCamera() {
@@ -215,14 +256,62 @@
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
-                return true;
+                
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        startRendering();
+                        resolve(true);
+                    };
+                });
             } catch (err) {
                 showToast("Akses kamera atau mikrofon ditolak.");
                 return false;
             }
         }
 
+        // Loop untuk melukis video dan background ke canvas
+        function startRendering() {
+            function render() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Lukis latar belakang jika ada
+                if (bgImage) {
+                    // Kira aspect ratio untuk "cover"
+                    const canvasRatio = canvas.width / canvas.height;
+                    const imgRatio = bgImage.width / bgImage.height;
+                    let drawW, drawH, drawX, drawY;
+
+                    if (imgRatio > canvasRatio) {
+                        drawH = canvas.height;
+                        drawW = bgImage.width * (canvas.height / bgImage.height);
+                        drawX = (canvas.width - drawW) / 2;
+                        drawY = 0;
+                    } else {
+                        drawW = canvas.width;
+                        drawH = bgImage.height * (canvas.width / bgImage.width);
+                        drawX = 0;
+                        drawY = (canvas.height - drawH) / 2;
+                    }
+                    ctx.drawImage(bgImage, drawX, drawY, drawW, drawH);
+                } else {
+                    // Default hitam jika tiada imej
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+
+                // Lukis video di atas background (atau ganti jika anda mahu kesan lain)
+                // Nota: Ini hanyalah lapisan, bukan pembuangan latar belakang AI.
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                renderLoopId = requestAnimationFrame(render);
+            }
+            render();
+        }
+
         function closeCamera() {
+            cancelAnimationFrame(renderLoopId);
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
@@ -291,10 +380,15 @@
 
             recordedChunks = [];
             
+            // Tangkap stream dari canvas supaya latar belakang ikut dirakam
+            const canvasStream = canvas.captureStream(30);
+            const audioTrack = stream.getAudioTracks()[0];
+            if (audioTrack) canvasStream.addTrack(audioTrack);
+
             try {
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9,opus' });
+                mediaRecorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm; codecs=vp9,opus' });
             } catch (e) {
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                mediaRecorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm' });
             }
 
             mediaRecorder.ondataavailable = (e) => {
@@ -308,7 +402,7 @@
                 downloadBtn.onclick = () => {
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `rakaman_${new Date().getTime()}.webm`;
+                    a.download = `rakaman_bg_${new Date().getTime()}.webm`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
