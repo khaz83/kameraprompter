@@ -475,12 +475,31 @@
         };
 
         resetBtn.onclick = () => {
-            resetScroll();
+            // 1. Berhenti Kamera & Rakaman
+            if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
             stopCamera();
+            
+            // 2. Reset Teks & Scroll
+            resetScroll();
+            textInput.value = "";
+            prompterText.innerText = "Sila masukkan teks anda di ruangan bawah...";
+            
+            // 3. Reset Latar Belakang
+            bgImage = null;
+            bgColor = null;
+            bgUpload.value = '';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 4. Reset UI & Timer
             timerDisplay.classList.add('hidden');
+            timerDisplay.innerText = "00:00:00";
             recordedChunks = [];
             downloadBtn.disabled = true;
-            showToast("Sedia semula.");
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            recordingStatus.classList.add('hidden');
+            
+            showToast("Semua tetapan telah di-reset.");
         };
 
         function showToast(msg) {
