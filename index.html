@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Video Recorder & Teleprompter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Merriweather:wght@400;700&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: white;
+            overflow-x: hidden;
+            font-family: 'Open Sans', sans-serif;
+        }
+        #video-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid #334155;
+        }
+        #preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Kesan cermin */
+        }
+        #prompter-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            background: rgba(0,0,0,0.3);
+        }
+        #prompter-scroll {
+            width: 80%;
+            height: 60%;
+            overflow-y: hidden;
+            text-align: center;
+            pointer-events: none;
+            mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+        }
+        #prompter-text {
+            white-space: pre-wrap;
+            transition: transform 0.1s linear;
+        }
+        .control-panel {
+            background: rgba(30, 41, 59, 0.9);
+            backdrop-filter: blur(8px);
+        }
+        input[type="range"] {
+            accent-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-blue-400">Pro Prompter & Recorder</h1>
+            <p class="text-gray-400 text-sm">Sesuai untuk iPad, Smartphone & Desktop</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Bahagian Utama: Video & Prompter -->
+            <div class="lg:col-span-2 space-y-4">
+                <div id="video-container">
+                    <video id="preview" autoplay muted playsinline></video>
+                    <div id="prompter-overlay">
+                        <div id="prompter-scroll">
+                            <div id="prompter-text" class="pt-[30%] pb-[30%]">Sila masukkan teks anda di ruangan bawah...</div>
+                        </div>
+                    </div>
+                    <!-- Penunjuk Status -->
+                    <div id="recording-status" class="hidden absolute top-4 right-4 flex items-center space-x-2 bg-red-600 px-3 py-1 rounded-full animate-pulse">
+                        <div class="w-3 h-3 bg-white rounded-full"></div>
+                        <span class="text-xs font-bold uppercase">Merakam</span>
+                    </div>
+                </div>
+
+                <div class="control-panel p-4 rounded-xl shadow-lg border border-slate-700 flex flex-wrap justify-center gap-4">
+                    <button id="start-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path></svg>
+                        Mula Rakaman
+                    </button>
+                    <button id="stop-btn" disabled class="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
+                        Berhenti
+                    </button>
+                    <button id="download-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"></path></svg>
+                        Simpan & Buka Google Drive
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bahagian Kawalan: Tetapan -->
+            <div class="space-y-6">
+                <!-- Editor Teks -->
+                <div class="control-panel p-5 rounded-xl border border-slate-700">
+                    <h2 class="text-lg font-semibold mb-3 border-b border-slate-600 pb-2">Teks Prompter</h2>
+                    <textarea id="text-input" class="w-full h-40 bg-slate-800 text-white p-3 rounded-lg border border-slate-600 focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Paste teks anda di sini..."></textarea>
+                </div>
+
+                <!-- Konfigurasi -->
+                <div class="control-panel p-5 rounded-xl border border-slate-700 space-y-4">
+                    <h2 class="text-lg font-semibold border-b border-slate-600 pb-2 text-blue-300">Tetapan Prompter</h2>
+                    
+                    <!-- Saiz & Fon -->
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Saiz Fon: <span id="font-size-val">30</span>px</label>
+                        <input type="range" id="font-size" min="16" max="80" value="30" class="w-full">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Kelajuan Skrol</label>
+                        <input type="range" id="scroll-speed" min="0" max="100" value="30" class="w-full">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Jenis Fon</label>
+                        <select id="font-family" class="w-full bg-slate-800 p-2 rounded border border-slate-600 text-sm">
+                            <option value="'Open Sans', sans-serif">Sans Serif</option>
+                            <option value="'Merriweather', serif">Serif (Formal)</option>
+                            <option value="'Roboto', sans-serif">Roboto</option>
+                            <option value="monospace">Monospace</option>
+                        </select>
+                    </div>
+
+                    <!-- Resolusi Video -->
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Resolusi Kamera</label>
+                        <select id="video-res" class="w-full bg-slate-800 p-2 rounded border border-slate-600 text-sm text-yellow-400">
+                            <option value="1080">Full HD (1080p)</option>
+                            <option value="2000">2K (2048p)</option>
+                            <option value="4000">4K (Ultra HD)</option>
+                        </select>
+                    </div>
+
+                    <!-- Warna Latar Belakang -->
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Warna Background Prompter</label>
+                        <div class="flex gap-2">
+                            <button class="bg-black w-8 h-8 rounded border border-white" onclick="changeBg('rgba(0,0,0,0.5)')"></button>
+                            <button class="bg-blue-900 w-8 h-8 rounded border border-white" onclick="changeBg('rgba(30,58,138,0.5)')"></button>
+                            <button class="bg-green-900 w-8 h-8 rounded border border-white" onclick="changeBg('rgba(20,83,45,0.5)')"></button>
+                            <button class="bg-transparent w-8 h-8 rounded border border-white flex items-center justify-center text-[10px]" onclick="changeBg('transparent')">Tiada</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="mt-8 text-center text-gray-500 text-xs">
+            Aplikasi ini berjalan secara lokal. Sedia untuk GitHub.
+        </footer>
+    </div>
+
+    <!-- UI Mesej -->
+    <div id="toast" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-2 rounded-full shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none z-50">
+        Mesej di sini
+    </div>
+
+    <script>
+        const video = document.getElementById('preview');
+        const textInput = document.getElementById('text-input');
+        const prompterText = document.getElementById('prompter-text');
+        const prompterScroll = document.getElementById('prompter-scroll');
+        const prompterOverlay = document.getElementById('prompter-overlay');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const fontSizeInput = document.getElementById('font-size');
+        const speedInput = document.getElementById('scroll-speed');
+        const fontSelect = document.getElementById('font-family');
+        const resSelect = document.getElementById('video-res');
+        const recordingStatus = document.getElementById('recording-status');
+
+        const GOOGLE_DRIVE_LINK = "https://drive.google.com/drive/folders/1z8CaYkrPMraN2LFSv7DujsFBi7JP8IJ_?usp=sharing";
+
+        let mediaRecorder;
+        let recordedChunks = [];
+        let scrollInterval;
+        let scrollPos = 0;
+        let stream;
+
+        // Inisialisasi Kamera
+        async function initCamera() {
+            const height = parseInt(resSelect.value);
+            const constraints = {
+                video: {
+                    width: { ideal: height * 1.77 },
+                    height: { ideal: height },
+                    facingMode: "user"
+                },
+                audio: true
+            };
+
+            try {
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+            } catch (err) {
+                showToast("Ralat Kamera: Sila beri kebenaran akses.");
+                console.error(err);
+            }
+        }
+
+        // Kemas Kini Prompter
+        textInput.addEventListener('input', () => {
+            prompterText.innerText = textInput.value || "Sila masukkan teks anda di ruangan bawah...";
+            resetScroll();
+        });
+
+        fontSizeInput.addEventListener('input', () => {
+            const val = fontSizeInput.value;
+            document.getElementById('font-size-val').innerText = val;
+            prompterText.style.fontSize = val + 'px';
+        });
+
+        fontSelect.addEventListener('change', () => {
+            prompterText.style.fontFamily = fontSelect.value;
+        });
+
+        resSelect.addEventListener('change', initCamera);
+
+        function changeBg(color) {
+            prompterOverlay.style.backgroundColor = color;
+        }
+
+        // Logik Skrol
+        function startScrolling() {
+            clearInterval(scrollInterval);
+            scrollPos = 0;
+            const speed = parseInt(speedInput.value);
+            if (speed === 0) return;
+
+            const step = speed / 10;
+            scrollInterval = setInterval(() => {
+                scrollPos += step;
+                prompterScroll.scrollTop = scrollPos;
+                
+                if (scrollPos > prompterScroll.scrollHeight) {
+                    scrollPos = -200; 
+                }
+            }, 50);
+        }
+
+        function resetScroll() {
+            clearInterval(scrollInterval);
+            scrollPos = 0;
+            prompterScroll.scrollTop = 0;
+        }
+
+        // Logik Rakaman
+        startBtn.onclick = () => {
+            recordedChunks = [];
+            
+            try {
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9,opus' });
+            } catch (e) {
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+            }
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                downloadBtn.disabled = false;
+                
+                downloadBtn.onclick = () => {
+                    // 1. Muat turun video secara lokal
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `rakaman_${new Date().getTime()}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+
+                    // 2. Buka folder Google Drive dalam tab baru
+                    window.open(GOOGLE_DRIVE_LINK, '_blank');
+                    
+                    showToast("Video dimuat turun. Sila muat naik fail ke folder Google Drive yang dibuka.");
+                };
+            };
+
+            mediaRecorder.start();
+            startScrolling();
+            
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            recordingStatus.classList.remove('hidden');
+            showToast("Rakaman bermula...");
+        };
+
+        stopBtn.onclick = () => {
+            mediaRecorder.stop();
+            clearInterval(scrollInterval);
+            
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            recordingStatus.classList.add('hidden');
+            showToast("Rakaman tamat.");
+        };
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.opacity = '1';
+            setTimeout(() => { toast.style.opacity = '0'; }, 4000);
+        }
+
+        window.onload = initCamera;
+    </script>
+</body>
+</html>
