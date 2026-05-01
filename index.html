@@ -104,6 +104,10 @@
                     <button id="stop-btn" disabled class="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
                         Berhenti
                     </button>
+                    <button id="reset-btn" class="bg-slate-600 hover:bg-slate-700 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        Reset
+                    </button>
                     <button id="download-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
                         <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"></path></svg>
                         Simpan & Buka Google Drive
@@ -130,7 +134,7 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">Kelajuan Skrol</label>
+                        <label class="block text-xs text-gray-400 mb-1">Kelajuan Skrol: <span id="scroll-speed-val">30</span></label>
                         <input type="range" id="scroll-speed" min="0" max="100" value="30" class="w-full">
                     </div>
 
@@ -186,6 +190,7 @@
         const prompterOverlay = document.getElementById('prompter-overlay');
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
+        const resetBtn = document.getElementById('reset-btn');
         const downloadBtn = document.getElementById('download-btn');
         const fontSizeInput = document.getElementById('font-size');
         const speedInput = document.getElementById('scroll-speed');
@@ -248,14 +253,23 @@
 
         resSelect.addEventListener('change', initCamera);
 
+        // Update scroll speed display and restart interval if scrolling
+        speedInput.addEventListener('input', () => {
+            document.getElementById('scroll-speed-val').innerText = speedInput.value;
+            if (scrollInterval) {
+                startScrolling(false); // Restart with new speed without resetting position
+            }
+        });
+
         function changeBg(color) {
             prompterOverlay.style.backgroundColor = color;
         }
 
         // Logik Skrol
-        function startScrolling() {
+        function startScrolling(resetPos = true) {
             clearInterval(scrollInterval);
-            scrollPos = 0;
+            if (resetPos) scrollPos = 0;
+            
             const speed = parseInt(speedInput.value);
             if (speed === 0) return;
 
@@ -272,6 +286,7 @@
 
         function resetScroll() {
             clearInterval(scrollInterval);
+            scrollInterval = null;
             scrollPos = 0;
             prompterScroll.scrollTop = 0;
         }
@@ -301,7 +316,6 @@
 
         function stopTimer() {
             clearInterval(timerInterval);
-            // Timer kekal dipaparkan sehingga rakaman baru bermula
         }
 
         // Logik Rakaman
@@ -324,40 +338,49 @@
                 downloadBtn.disabled = false;
                 
                 downloadBtn.onclick = () => {
-                    // 1. Muat turun video secara lokal
                     const a = document.createElement('a');
                     a.href = url;
                     a.download = `rakaman_${new Date().getTime()}.webm`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-
-                    // 2. Buka folder Google Drive dalam tab baru
                     window.open(GOOGLE_DRIVE_LINK, '_blank');
-                    
-                    showToast("Video dimuat turun. Sila muat naik fail ke folder Google Drive yang dibuka.");
+                    showToast("Video dimuat turun. Sila muat naik fail ke folder Google Drive.");
                 };
             };
 
             mediaRecorder.start();
-            startScrolling();
+            startScrolling(true);
             startTimer();
             
             startBtn.disabled = true;
             stopBtn.disabled = false;
+            resetBtn.disabled = true;
             recordingStatus.classList.remove('hidden');
             showToast("Rakaman bermula...");
         };
 
         stopBtn.onclick = () => {
-            mediaRecorder.stop();
-            clearInterval(scrollInterval);
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+            }
+            resetScroll();
             stopTimer();
             
             startBtn.disabled = false;
             stopBtn.disabled = true;
+            resetBtn.disabled = false;
             recordingStatus.classList.add('hidden');
             showToast("Rakaman tamat.");
+        };
+
+        resetBtn.onclick = () => {
+            resetScroll();
+            timerDisplay.innerText = "00:00:00";
+            timerDisplay.classList.add('hidden');
+            recordedChunks = [];
+            downloadBtn.disabled = true;
+            showToast("Sedia untuk rakaman semula.");
         };
 
         function showToast(msg) {
