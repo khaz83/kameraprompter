@@ -178,15 +178,13 @@
                 <div class="control-panel p-5 rounded-xl border border-slate-700 space-y-4">
                     <h2 class="text-lg font-semibold border-b border-slate-600 pb-2 text-blue-300">Tetapan Visual</h2>
                     
-                    <!-- Fungsi Zoom In/Out Baharu -->
-                    <div id="zoom-control-container" class="hidden">
-                        <label class="block text-xs text-gray-400 mb-1 flex justify-between">
-                            Zoom Kamera: <span id="zoom-val">1.0</span>x
-                        </label>
+                    <!-- Bahagian Zoom -->
+                    <div id="zoom-controls" class="hidden">
+                        <label class="block text-xs text-gray-400 mb-1">Zoom Kamera: <span id="zoom-val">1</span>x</label>
                         <div class="flex items-center space-x-2">
-                            <button id="zoom-out-btn" class="bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded flex items-center justify-center text-lg">-</button>
+                            <button id="zoom-out-btn" class="bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded">-</button>
                             <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="1" class="flex-grow">
-                            <button id="zoom-in-btn" class="bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded flex items-center justify-center text-lg">+</button>
+                            <button id="zoom-in-btn" class="bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded">+</button>
                         </div>
                     </div>
 
@@ -247,10 +245,10 @@
         const setWhiteBgBtn = document.getElementById('set-white-bg');
         const maximizeBtn = document.getElementById('maximize-btn');
 
-        // Zoom Elements
-        const zoomControlContainer = document.getElementById('zoom-control-container');
+        // Zoom elements
+        const zoomControls = document.getElementById('zoom-controls');
         const zoomSlider = document.getElementById('zoom-slider');
-        const zoomValDisplay = document.getElementById('zoom-val');
+        const zoomValDisp = document.getElementById('zoom-val');
         const zoomInBtn = document.getElementById('zoom-in-btn');
         const zoomOutBtn = document.getElementById('zoom-out-btn');
 
@@ -264,9 +262,8 @@
         let bgImage = null;
         let bgColor = null;
         let renderLoopId;
-        let videoTrack = null;
+        let isRecording = false;
 
-        // Maximize Functionality
         maximizeBtn.onclick = () => {
             if (!document.fullscreenElement) {
                 videoContainer.requestFullscreen().catch(err => showToast("Gagal skrin penuh"));
@@ -308,28 +305,6 @@
             showToast("Latar belakang dikosongkan.");
         };
 
-        // ZOOM LOGIC
-        function applyZoom(val) {
-            if (videoTrack && videoTrack.getCapabilities().zoom) {
-                videoTrack.applyConstraints({
-                    advanced: [{ zoom: parseFloat(val) }]
-                }).catch(e => console.error("Ralat zoom:", e));
-                zoomValDisplay.innerText = parseFloat(val).toFixed(1);
-            }
-        }
-
-        zoomSlider.addEventListener('input', (e) => applyZoom(e.target.value));
-        zoomInBtn.onclick = () => {
-            let newVal = Math.min(parseFloat(zoomSlider.max), parseFloat(zoomSlider.value) + 0.2);
-            zoomSlider.value = newVal;
-            applyZoom(newVal);
-        };
-        zoomOutBtn.onclick = () => {
-            let newVal = Math.max(parseFloat(zoomSlider.min), parseFloat(zoomSlider.value) - 0.2);
-            zoomSlider.value = newVal;
-            applyZoom(newVal);
-        };
-
         async function startCamera() {
             const height = parseInt(resSelect.value);
             const constraints = {
@@ -340,26 +315,25 @@
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
-                videoTrack = stream.getVideoTracks()[0];
-                
-                // Periksa jika peranti sokong Zoom
-                const capabilities = videoTrack.getCapabilities();
-                if (capabilities.zoom) {
-                    zoomControlContainer.classList.remove('hidden');
-                    zoomSlider.min = capabilities.zoom.min;
-                    zoomSlider.max = capabilities.zoom.max;
-                    zoomSlider.step = capabilities.zoom.step || 0.1;
-                    zoomSlider.value = capabilities.zoom.min;
-                    zoomValDisplay.innerText = capabilities.zoom.min.toFixed(1);
-                } else {
-                    zoomControlContainer.classList.add('hidden');
-                }
-
                 cameraOffMsg.classList.add('hidden');
+                
                 await video.play();
                 
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
+                
+                // Periksa sokongan zoom
+                const track = stream.getVideoTracks()[0];
+                const caps = track.getCapabilities();
+                if (caps.zoom) {
+                    zoomControls.classList.remove('hidden');
+                    zoomSlider.min = caps.zoom.min;
+                    zoomSlider.max = caps.zoom.max;
+                    zoomSlider.step = caps.zoom.step || 0.1;
+                    zoomSlider.value = caps.zoom.min;
+                    updateZoomUI(zoomSlider.value);
+                }
+
                 startRendering();
                 return true;
             } catch (err) {
@@ -368,16 +342,33 @@
             }
         }
 
+        function updateZoomUI(val) {
+            zoomValDisp.innerText = val;
+            const track = stream ? stream.getVideoTracks()[0] : null;
+            if (track && track.getCapabilities().zoom) {
+                track.applyConstraints({ advanced: [{ zoom: parseFloat(val) }] });
+            }
+        }
+
+        zoomSlider.oninput = (e) => updateZoomUI(e.target.value);
+        zoomInBtn.onclick = () => {
+            zoomSlider.value = Math.min(parseFloat(zoomSlider.max), parseFloat(zoomSlider.value) + 0.2);
+            updateZoomUI(zoomSlider.value);
+        };
+        zoomOutBtn.onclick = () => {
+            zoomSlider.value = Math.max(parseFloat(zoomSlider.min), parseFloat(zoomSlider.value) - 0.2);
+            updateZoomUI(zoomSlider.value);
+        };
+
         function stopCamera() {
             if (renderLoopId) cancelAnimationFrame(renderLoopId);
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
                 stream = null;
-                videoTrack = null;
             }
             cameraOffMsg.classList.remove('hidden');
-            zoomControlContainer.classList.add('hidden');
+            zoomControls.classList.add('hidden');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             drawStaticPreview();
         }
@@ -391,7 +382,6 @@
                 ctx.scale(-1, 1);
                 ctx.translate(-canvas.width, 0);
 
-                // Draw background (Color or Image)
                 if (bgImage) {
                     const canvasRatio = canvas.width / canvas.height;
                     const imgRatio = bgImage.width / bgImage.height;
@@ -426,8 +416,6 @@
             } else if (bgColor) {
                 ctx.fillStyle = bgColor;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-            } else {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
             }
         }
 
@@ -480,14 +468,14 @@
         }
 
         startBtn.onclick = async () => {
-            // Aktifkan kamera untuk setup sebelum rakaman jika belum aktif
             if (!stream) {
                 const success = await startCamera();
                 if (!success) return;
-                showToast("Sila laras zoom dan latar belakang sekarang.");
-                return; // Tunggu user tekan kali kedua untuk mula rakaman sebenar
+                showToast("Kamera sedia. Laras zoom jika perlu, kemudian tekan 'Mula Rakaman' lagi.");
+                return;
             }
 
+            isRecording = true;
             recordedChunks = [];
             const canvasStream = canvas.captureStream(30);
             const audioTrack = stream.getAudioTracks()[0];
@@ -509,7 +497,7 @@
                     a.href = url;
                     a.download = `prompter_video_${Date.now()}.webm`;
                     a.click();
-                    showToast("Video disimpan. Jangan lupa muat naik ke Drive!");
+                    showToast("Video disimpan.");
                 };
             };
 
@@ -522,15 +510,13 @@
             startBtn.disabled = true;
             stopBtn.disabled = false;
             resetBtn.disabled = true;
-            zoomControlContainer.classList.add('opacity-50'); // Lock zoom semasa rakaman
-            zoomSlider.disabled = true;
-            zoomInBtn.disabled = true;
-            zoomOutBtn.disabled = true;
+            zoomSlider.disabled = true; // Lock zoom semasa rakaman
             recordingStatus.classList.remove('hidden');
             showToast("Rakaman bermula...");
         };
 
         stopBtn.onclick = () => {
+            isRecording = false;
             if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
             stopCamera();
             resetScroll();
@@ -539,9 +525,6 @@
             stopBtn.disabled = true;
             resetBtn.disabled = false;
             zoomSlider.disabled = false;
-            zoomInBtn.disabled = false;
-            zoomOutBtn.disabled = false;
-            zoomControlContainer.classList.remove('opacity-50');
             recordingStatus.classList.add('hidden');
             showToast("Kamera ditutup & rakaman tamat.");
         };
@@ -572,6 +555,11 @@
             toast.style.opacity = '1';
             setTimeout(() => toast.style.opacity = '0', 3000);
         }
+
+        // Aktifkan kamera pada permulaan untuk kemudahan melaras zoom
+        window.onload = () => {
+            drawStaticPreview();
+        };
     </script>
 </body>
 </html>
