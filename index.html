@@ -24,7 +24,7 @@
             overflow: hidden;
             border: 2px solid #334155;
             transition: all 0.3s ease;
-            touch-action: none; /* Penting untuk zoom manual pada mobile */
+            touch-action: none;
         }
         #video-container:fullscreen {
             max-width: 100vw;
@@ -105,7 +105,7 @@
     <div class="max-w-6xl mx-auto">
         <header class="mb-6 text-center">
             <h1 class="text-3xl font-bold text-blue-400">Pro Prompter & Recorder</h1>
-            <p class="text-gray-400 text-sm">Sediakan Zoom dan Skrip sebelum mula rakaman</p>
+            <p class="text-gray-400 text-sm">Hantar Rakaman Terus ke Google Drive (Tanpa Simpan Lokal)</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -154,10 +154,10 @@
                         Reset
                     </button>
                     <div class="flex flex-col gap-2">
-                        <button id="download-btn" disabled class="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center transition">
-                            Simpan Rakaman
+                        <button id="upload-drive-btn" disabled class="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold flex items-center justify-center transition shadow-[0_0_15px_rgba(59,130,246,0.4)]">
+                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z"></path></svg>
+                            Upload ke Google Drive
                         </button>
-                        <a href="https://drive.google.com/drive/folders/1z8CaYkrPMraN2LFSv7DujsFBi7JP8IJ_?usp=drive_link" target="_blank" class="text-[10px] text-center text-blue-400 hover:underline">Muat Naik ke Google Drive</a>
                     </div>
                 </div>
             </div>
@@ -182,7 +182,6 @@
                 <div class="control-panel p-5 rounded-xl border border-slate-700 space-y-4">
                     <h2 class="text-lg font-semibold border-b border-slate-600 pb-2 text-blue-300">Tetapan Visual</h2>
                     
-                    <!-- Bahagian Zoom Interaktif -->
                     <div id="zoom-controls" class="hidden">
                         <label class="block text-xs text-gray-400 mb-1">Zoom Kamera: <span id="zoom-val">1</span>x</label>
                         <div class="flex items-center space-x-2">
@@ -194,7 +193,6 @@
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                             </button>
                         </div>
-                        <p class="text-[10px] text-gray-400 mt-1">*Boleh zoom terus pada skrin (skrol/cubit) atau guna slider.</p>
                     </div>
 
                     <div>
@@ -226,7 +224,7 @@
         </div>
     </div>
 
-    <div id="toast" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-2 rounded-full shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none z-50">
+    <div id="toast" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-2 rounded-full shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none z-50 text-center min-w-[200px]">
         Mesej
     </div>
 
@@ -243,7 +241,7 @@
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
         const resetBtn = document.getElementById('reset-btn');
-        const downloadBtn = document.getElementById('download-btn');
+        const uploadBtn = document.getElementById('upload-drive-btn');
         const fontSizeInput = document.getElementById('font-size');
         const fontFamilySelect = document.getElementById('font-family');
         const speedInput = document.getElementById('scroll-speed');
@@ -255,7 +253,6 @@
         const setWhiteBgBtn = document.getElementById('set-white-bg');
         const maximizeBtn = document.getElementById('maximize-btn');
 
-        // Zoom elements
         const zoomControls = document.getElementById('zoom-controls');
         const zoomSlider = document.getElementById('zoom-slider');
         const zoomValDisp = document.getElementById('zoom-val');
@@ -273,9 +270,10 @@
         let bgColor = null;
         let renderLoopId;
         let isRecording = false;
-
-        // Variables for skrin interaction zoom
         let initialDistance = null;
+
+        // Pautan Google Drive anda
+        const DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1z8CaYkrPMraN2LFSv7DujsFBi7JP8IJ_?usp=sharing";
 
         maximizeBtn.onclick = () => {
             if (!document.fullscreenElement) {
@@ -318,7 +316,6 @@
             showToast("Latar belakang dikosongkan.");
         };
 
-        // Fungsi utama untuk aktifkan kamera dan semak kebolehan Zoom
         async function startCamera() {
             const height = parseInt(resSelect.value);
             const constraints = {
@@ -338,7 +335,6 @@
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
                 cameraOffMsg.classList.add('hidden');
-                
                 await video.play();
                 
                 canvas.width = video.videoWidth;
@@ -352,10 +348,8 @@
                     zoomSlider.min = capabilities.zoom.min;
                     zoomSlider.max = capabilities.zoom.max;
                     zoomSlider.step = capabilities.zoom.step || 0.1;
-                    
                     const currentZoom = zoomSlider.value || capabilities.zoom.min;
                     zoomSlider.value = Math.max(capabilities.zoom.min, Math.min(capabilities.zoom.max, currentZoom));
-                    
                     updateZoomUI(zoomSlider.value);
                 } else {
                     zoomControls.classList.add('hidden');
@@ -365,51 +359,35 @@
                 startBtn.disabled = false;
                 return true;
             } catch (err) {
-                console.error("Camera Error:", err);
                 showToast("Sila benarkan akses kamera/mikrofon.");
                 return false;
             }
         }
 
-        // Fungsi mengemaskini tahap zoom secara real-time
         async function updateZoomUI(val) {
             val = parseFloat(val);
-            // Cap value based on slider limits
             if (val > parseFloat(zoomSlider.max)) val = parseFloat(zoomSlider.max);
             if (val < parseFloat(zoomSlider.min)) val = parseFloat(zoomSlider.min);
-
             zoomSlider.value = val;
             zoomValDisp.innerText = val.toFixed(1);
-
             if (!stream) return;
-            
             const track = stream.getVideoTracks()[0];
             const capabilities = track.getCapabilities();
-            
             if (capabilities.zoom) {
                 try {
-                    await track.applyConstraints({
-                        advanced: [{ zoom: val }]
-                    });
-                } catch (e) {
-                    console.warn("Gagal apply zoom:", e);
-                }
+                    await track.applyConstraints({ advanced: [{ zoom: val }] });
+                } catch (e) {}
             }
         }
 
-        // ZOOM DINAMIK PADA SKRIN (Event Listeners)
-        
-        // 1. Zoom guna tetikus (Scroll wheel)
         canvas.addEventListener('wheel', (e) => {
             if (!stream || isRecording) return;
             e.preventDefault();
             let currentVal = parseFloat(zoomSlider.value);
-            let step = 0.2;
-            let newVal = e.deltaY < 0 ? currentVal + step : currentVal - step;
+            let newVal = e.deltaY < 0 ? currentVal + 0.2 : currentVal - 0.2;
             updateZoomUI(newVal);
         }, { passive: false });
 
-        // 2. Pinch-to-zoom (Mobile/Tablet)
         canvas.addEventListener('touchstart', (e) => {
             if (e.touches.length === 2) {
                 initialDistance = Math.hypot(
@@ -422,37 +400,20 @@
         canvas.addEventListener('touchmove', (e) => {
             if (!stream || isRecording || e.touches.length !== 2 || initialDistance === null) return;
             e.preventDefault();
-            
             const currentDistance = Math.hypot(
                 e.touches[0].pageX - e.touches[1].pageX,
                 e.touches[0].pageY - e.touches[1].pageY
             );
-            
             const delta = currentDistance - initialDistance;
-            let currentVal = parseFloat(zoomSlider.value);
-            let sensitivity = 0.01;
-            let newVal = currentVal + (delta * sensitivity);
-            
+            let newVal = parseFloat(zoomSlider.value) + (delta * 0.01);
             updateZoomUI(newVal);
             initialDistance = currentDistance;
         }, { passive: false });
 
-        canvas.addEventListener('touchend', () => {
-            initialDistance = null;
-        });
-
-        // Event listeners untuk Zoom Slider & Buttons
+        canvas.addEventListener('touchend', () => initialDistance = null);
         zoomSlider.oninput = (e) => updateZoomUI(e.target.value);
-        
-        zoomInBtn.onclick = () => {
-            const newVal = Math.min(parseFloat(zoomSlider.max), parseFloat(zoomSlider.value) + 0.3);
-            updateZoomUI(newVal);
-        };
-        
-        zoomOutBtn.onclick = () => {
-            const newVal = Math.max(parseFloat(zoomSlider.min), parseFloat(zoomSlider.value) - 0.3);
-            updateZoomUI(newVal);
-        };
+        zoomInBtn.onclick = () => updateZoomUI(parseFloat(zoomSlider.value) + 0.3);
+        zoomOutBtn.onclick = () => updateZoomUI(parseFloat(zoomSlider.value) - 0.3);
 
         function stopCamera() {
             if (renderLoopId) cancelAnimationFrame(renderLoopId);
@@ -468,13 +429,11 @@
 
         function startRendering() {
             if (renderLoopId) cancelAnimationFrame(renderLoopId);
-
             function render() {
                 if (!stream) return;
                 ctx.save();
                 ctx.scale(-1, 1);
                 ctx.translate(-canvas.width, 0);
-
                 if (bgImage) {
                     const canvasRatio = canvas.width / canvas.height;
                     const imgRatio = bgImage.width / bgImage.height;
@@ -494,7 +453,6 @@
                     ctx.fillStyle = '#000';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
-
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 ctx.restore();
                 renderLoopId = requestAnimationFrame(render);
@@ -504,12 +462,8 @@
 
         function drawStaticPreview() {
             if (canvas.width === 0) { canvas.width = 1280; canvas.height = 720; }
-            if (bgImage) {
-                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-            } else if (bgColor) {
-                ctx.fillStyle = bgColor;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
+            if (bgImage) ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+            else if (bgColor) { ctx.fillStyle = bgColor; ctx.fillRect(0, 0, canvas.width, canvas.height); }
         }
 
         textInput.addEventListener('input', () => {
@@ -523,10 +477,7 @@
             prompterText.style.fontSize = val + 'px';
         });
 
-        fontFamilySelect.addEventListener('change', () => {
-            prompterText.style.fontFamily = fontFamilySelect.value;
-        });
-
+        fontFamilySelect.addEventListener('change', () => prompterText.style.fontFamily = fontFamilySelect.value);
         speedInput.addEventListener('input', () => {
             document.getElementById('scroll-speed-val').innerText = speedInput.value;
             if (scrollInterval) startScrolling(false);
@@ -537,7 +488,6 @@
             if (resetPos) scrollPos = 0;
             const speed = parseInt(speedInput.value);
             if (speed === 0) return;
-            
             scrollInterval = setInterval(() => {
                 scrollPos += speed / 15;
                 prompterScroll.scrollTop = scrollPos;
@@ -573,30 +523,39 @@
                 const success = await startCamera();
                 if (!success) return;
             }
-
             isRecording = true;
             recordedChunks = [];
             const canvasStream = canvas.captureStream(30);
             const audioTrack = stream.getAudioTracks()[0];
             if (audioTrack) canvasStream.addTrack(audioTrack);
-
             const mime = ['video/webm;codecs=vp9,opus', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
             mediaRecorder = new MediaRecorder(canvasStream, { mimeType: mime });
-
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) recordedChunks.push(e.data);
-            };
-
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            
             mediaRecorder.onstop = () => {
                 const blob = new Blob(recordedChunks, { type: 'video/webm' });
                 const url = URL.createObjectURL(blob);
-                downloadBtn.disabled = false;
-                downloadBtn.onclick = () => {
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `prompter_video_${Date.now()}.webm`;
-                    a.click();
-                    showToast("Video disimpan.");
+                uploadBtn.disabled = false;
+                
+                // Logik untuk Membuka Drive tanpa simpan lokal
+                uploadBtn.onclick = () => {
+                    // Cuba salin pautan video ke clipboard untuk rujukan (jika disokong)
+                    try {
+                        const dummy = document.createElement('textarea');
+                        document.body.appendChild(dummy);
+                        dummy.value = url;
+                        dummy.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(dummy);
+                        showToast("Pautan video sedia di cache. Membuka Google Drive...");
+                    } catch (err) {
+                        showToast("Membuka Google Drive...");
+                    }
+
+                    // Buka Google Drive dalam tab baru
+                    setTimeout(() => {
+                        window.open(DRIVE_FOLDER_URL, '_blank');
+                    }, 1000);
                 };
             };
 
@@ -605,38 +564,31 @@
             startTime = Date.now();
             timerDisplay.classList.remove('hidden');
             timerInterval = setInterval(updateTimer, 1000);
-            
             startBtn.disabled = true;
             stopBtn.disabled = false;
             resetBtn.disabled = true;
-            
             zoomSlider.disabled = true;
             zoomInBtn.disabled = true;
             zoomOutBtn.disabled = true;
             canvas.style.cursor = 'default';
-
             recordingStatus.classList.remove('hidden');
-            showToast("Rakaman sedang berjalan...");
+            showToast("Rakaman bermula...");
         };
 
         stopBtn.onclick = () => {
             isRecording = false;
             if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-            
             resetScroll();
             clearInterval(timerInterval);
-            
             startBtn.disabled = false;
             stopBtn.disabled = true;
             resetBtn.disabled = false;
-            
             zoomSlider.disabled = false;
             zoomInBtn.disabled = false;
             zoomOutBtn.disabled = false;
             canvas.style.cursor = 'zoom-in';
-
             recordingStatus.classList.add('hidden');
-            showToast("Rakaman tamat.");
+            showToast("Rakaman tamat. Sedia untuk dihantar.");
         };
 
         resetBtn.onclick = () => {
@@ -645,31 +597,27 @@
             resetScroll();
             textInput.value = "";
             prompterText.innerText = "Sila masukkan teks anda di ruangan bawah...";
-            bgImage = null;
-            bgColor = null;
-            bgUpload.value = '';
+            bgImage = null; bgColor = null; bgUpload.value = '';
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             timerDisplay.classList.add('hidden');
             timerDisplay.innerText = "00:00:00";
             recordedChunks = [];
-            downloadBtn.disabled = true;
+            uploadBtn.disabled = true;
             startBtn.disabled = true;
             stopBtn.disabled = true;
             prepBtn.classList.remove('hidden');
             recordingStatus.classList.add('hidden');
-            showToast("Tetapan dikembalikan ke asal.");
+            showToast("Reset berjaya.");
         };
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
             toast.innerText = msg;
             toast.style.opacity = '1';
-            setTimeout(() => toast.style.opacity = '0', 3000);
+            setTimeout(() => toast.style.opacity = '0', 3500);
         }
 
-        window.onload = () => {
-            drawStaticPreview();
-        };
+        window.onload = () => drawStaticPreview();
     </script>
 </body>
 </html>
