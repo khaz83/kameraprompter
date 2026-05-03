@@ -24,6 +24,7 @@
             overflow: hidden;
             border: 2px solid #334155;
             transition: all 0.3s ease;
+            touch-action: none; /* Penting untuk zoom manual pada mobile */
         }
         #video-container:fullscreen {
             max-width: 100vw;
@@ -36,6 +37,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            cursor: zoom-in;
         }
         #hidden-video {
             display: none;
@@ -192,7 +194,7 @@
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                             </button>
                         </div>
-                        <p class="text-[10px] text-gray-500 mt-1">*Zoom tersedia jika perkakasan menyokong.</p>
+                        <p class="text-[10px] text-gray-400 mt-1">*Boleh zoom terus pada skrin (skrol/cubit) atau guna slider.</p>
                     </div>
 
                     <div>
@@ -272,6 +274,9 @@
         let renderLoopId;
         let isRecording = false;
 
+        // Variables for skrin interaction zoom
+        let initialDistance = null;
+
         maximizeBtn.onclick = () => {
             if (!document.fullscreenElement) {
                 videoContainer.requestFullscreen().catch(err => showToast("Gagal skrin penuh"));
@@ -326,7 +331,6 @@
             };
 
             try {
-                // Hentikan stream sedia ada jika ada
                 if (stream) {
                     stream.getTracks().forEach(t => t.stop());
                 }
@@ -340,7 +344,6 @@
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 
-                // --- LOGIK ZOOM DINAMIK ---
                 const track = stream.getVideoTracks()[0];
                 const capabilities = track.getCapabilities();
                 
@@ -350,18 +353,16 @@
                     zoomSlider.max = capabilities.zoom.max;
                     zoomSlider.step = capabilities.zoom.step || 0.1;
                     
-                    // Kekalkan nilai zoom semasa jika ada, jika tidak guna nilai minimum
                     const currentZoom = zoomSlider.value || capabilities.zoom.min;
                     zoomSlider.value = Math.max(capabilities.zoom.min, Math.min(capabilities.zoom.max, currentZoom));
                     
                     updateZoomUI(zoomSlider.value);
                 } else {
-                    // Sembunyikan jika tidak menyokong zoom perkakasan
                     zoomControls.classList.add('hidden');
                 }
 
                 startRendering();
-                startBtn.disabled = false; // Aktifkan butang rakaman selepas kamera sedia
+                startBtn.disabled = false;
                 return true;
             } catch (err) {
                 console.error("Camera Error:", err);
@@ -372,7 +373,14 @@
 
         // Fungsi mengemaskini tahap zoom secara real-time
         async function updateZoomUI(val) {
-            zoomValDisp.innerText = parseFloat(val).toFixed(1);
+            val = parseFloat(val);
+            // Cap value based on slider limits
+            if (val > parseFloat(zoomSlider.max)) val = parseFloat(zoomSlider.max);
+            if (val < parseFloat(zoomSlider.min)) val = parseFloat(zoomSlider.min);
+
+            zoomSlider.value = val;
+            zoomValDisp.innerText = val.toFixed(1);
+
             if (!stream) return;
             
             const track = stream.getVideoTracks()[0];
@@ -381,7 +389,7 @@
             if (capabilities.zoom) {
                 try {
                     await track.applyConstraints({
-                        advanced: [{ zoom: parseFloat(val) }]
+                        advanced: [{ zoom: val }]
                     });
                 } catch (e) {
                     console.warn("Gagal apply zoom:", e);
@@ -389,18 +397,60 @@
             }
         }
 
-        // Event listeners untuk Zoom
+        // ZOOM DINAMIK PADA SKRIN (Event Listeners)
+        
+        // 1. Zoom guna tetikus (Scroll wheel)
+        canvas.addEventListener('wheel', (e) => {
+            if (!stream || isRecording) return;
+            e.preventDefault();
+            let currentVal = parseFloat(zoomSlider.value);
+            let step = 0.2;
+            let newVal = e.deltaY < 0 ? currentVal + step : currentVal - step;
+            updateZoomUI(newVal);
+        }, { passive: false });
+
+        // 2. Pinch-to-zoom (Mobile/Tablet)
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                initialDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!stream || isRecording || e.touches.length !== 2 || initialDistance === null) return;
+            e.preventDefault();
+            
+            const currentDistance = Math.hypot(
+                e.touches[0].pageX - e.touches[1].pageX,
+                e.touches[0].pageY - e.touches[1].pageY
+            );
+            
+            const delta = currentDistance - initialDistance;
+            let currentVal = parseFloat(zoomSlider.value);
+            let sensitivity = 0.01;
+            let newVal = currentVal + (delta * sensitivity);
+            
+            updateZoomUI(newVal);
+            initialDistance = currentDistance;
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+            initialDistance = null;
+        });
+
+        // Event listeners untuk Zoom Slider & Buttons
         zoomSlider.oninput = (e) => updateZoomUI(e.target.value);
         
         zoomInBtn.onclick = () => {
             const newVal = Math.min(parseFloat(zoomSlider.max), parseFloat(zoomSlider.value) + 0.3);
-            zoomSlider.value = newVal;
             updateZoomUI(newVal);
         };
         
         zoomOutBtn.onclick = () => {
             const newVal = Math.max(parseFloat(zoomSlider.min), parseFloat(zoomSlider.value) - 0.3);
-            zoomSlider.value = newVal;
             updateZoomUI(newVal);
         };
 
@@ -412,7 +462,6 @@
                 stream = null;
             }
             cameraOffMsg.classList.remove('hidden');
-            // Kekalkan kawalan zoom kelihatan supaya user tahu ia ada, cuma tak aktif
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             drawStaticPreview();
         }
@@ -423,11 +472,9 @@
             function render() {
                 if (!stream) return;
                 ctx.save();
-                // Mirroring untuk rakaman muka hadapan
                 ctx.scale(-1, 1);
                 ctx.translate(-canvas.width, 0);
 
-                // Draw Background
                 if (bgImage) {
                     const canvasRatio = canvas.width / canvas.height;
                     const imgRatio = bgImage.width / bgImage.height;
@@ -448,7 +495,6 @@
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
 
-                // Draw Camera Video
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 ctx.restore();
                 renderLoopId = requestAnimationFrame(render);
@@ -514,17 +560,15 @@
             timerDisplay.innerText = `${h}:${m}:${s}`;
         }
 
-        // Tombol untuk aktifkan kamera sahaja (Fasa Persediaan)
         prepBtn.onclick = async () => {
             const success = await startCamera();
             if (success) {
-                showToast("Kamera sedia. Sila laras Zoom pada muka anda.");
-                prepBtn.classList.add('hidden'); // Sembunyi butang prep selepas sedia
+                showToast("Kamera sedia. Boleh zoom terus pada skrin.");
+                prepBtn.classList.add('hidden');
             }
         };
 
         startBtn.onclick = async () => {
-            // Pastikan kamera sedia, jika belum aktifkan
             if (!stream) {
                 const success = await startCamera();
                 if (!success) return;
@@ -532,7 +576,6 @@
 
             isRecording = true;
             recordedChunks = [];
-            // Tangkap canvas pada frame rate rakaman
             const canvasStream = canvas.captureStream(30);
             const audioTrack = stream.getAudioTracks()[0];
             if (audioTrack) canvasStream.addTrack(audioTrack);
@@ -567,10 +610,10 @@
             stopBtn.disabled = false;
             resetBtn.disabled = true;
             
-            // Kunci kawalan zoom semasa rakaman untuk elak gangguan visual tak sengaja
             zoomSlider.disabled = true;
             zoomInBtn.disabled = true;
             zoomOutBtn.disabled = true;
+            canvas.style.cursor = 'default';
 
             recordingStatus.classList.remove('hidden');
             showToast("Rakaman sedang berjalan...");
@@ -580,22 +623,20 @@
             isRecording = false;
             if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
             
-            // Berhenti skrol dan timer
             resetScroll();
             clearInterval(timerInterval);
             
-            // Kembalikan status butang
             startBtn.disabled = false;
             stopBtn.disabled = true;
             resetBtn.disabled = false;
             
-            // Buka kunci zoom semula
             zoomSlider.disabled = false;
             zoomInBtn.disabled = false;
             zoomOutBtn.disabled = false;
+            canvas.style.cursor = 'zoom-in';
 
             recordingStatus.classList.add('hidden');
-            showToast("Rakaman tamat. Kamera kekal aktif untuk sesi seterusnya.");
+            showToast("Rakaman tamat.");
         };
 
         resetBtn.onclick = () => {
@@ -614,7 +655,7 @@
             downloadBtn.disabled = true;
             startBtn.disabled = true;
             stopBtn.disabled = true;
-            prepBtn.classList.remove('hidden'); // Tunjuk butang persediaan semula
+            prepBtn.classList.remove('hidden');
             recordingStatus.classList.add('hidden');
             showToast("Tetapan dikembalikan ke asal.");
         };
