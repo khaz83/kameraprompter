@@ -177,6 +177,19 @@
 
                 <div class="control-panel p-5 rounded-xl border border-slate-700 space-y-4">
                     <h2 class="text-lg font-semibold border-b border-slate-600 pb-2 text-blue-300">Tetapan Visual</h2>
+                    
+                    <!-- Fungsi Zoom In/Out Baharu -->
+                    <div id="zoom-control-container" class="hidden">
+                        <label class="block text-xs text-gray-400 mb-1 flex justify-between">
+                            Zoom Kamera: <span id="zoom-val">1.0</span>x
+                        </label>
+                        <div class="flex items-center space-x-2">
+                            <button id="zoom-out-btn" class="bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded flex items-center justify-center text-lg">-</button>
+                            <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="1" class="flex-grow">
+                            <button id="zoom-in-btn" class="bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded flex items-center justify-center text-lg">+</button>
+                        </div>
+                    </div>
+
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">Jenis Tulisan (Font)</label>
                         <select id="font-family" class="w-full bg-slate-800 p-2 rounded border border-slate-600 text-sm">
@@ -234,6 +247,13 @@
         const setWhiteBgBtn = document.getElementById('set-white-bg');
         const maximizeBtn = document.getElementById('maximize-btn');
 
+        // Zoom Elements
+        const zoomControlContainer = document.getElementById('zoom-control-container');
+        const zoomSlider = document.getElementById('zoom-slider');
+        const zoomValDisplay = document.getElementById('zoom-val');
+        const zoomInBtn = document.getElementById('zoom-in-btn');
+        const zoomOutBtn = document.getElementById('zoom-out-btn');
+
         let mediaRecorder;
         let recordedChunks = [];
         let scrollInterval;
@@ -244,6 +264,7 @@
         let bgImage = null;
         let bgColor = null;
         let renderLoopId;
+        let videoTrack = null;
 
         // Maximize Functionality
         maximizeBtn.onclick = () => {
@@ -287,6 +308,28 @@
             showToast("Latar belakang dikosongkan.");
         };
 
+        // ZOOM LOGIC
+        function applyZoom(val) {
+            if (videoTrack && videoTrack.getCapabilities().zoom) {
+                videoTrack.applyConstraints({
+                    advanced: [{ zoom: parseFloat(val) }]
+                }).catch(e => console.error("Ralat zoom:", e));
+                zoomValDisplay.innerText = parseFloat(val).toFixed(1);
+            }
+        }
+
+        zoomSlider.addEventListener('input', (e) => applyZoom(e.target.value));
+        zoomInBtn.onclick = () => {
+            let newVal = Math.min(parseFloat(zoomSlider.max), parseFloat(zoomSlider.value) + 0.2);
+            zoomSlider.value = newVal;
+            applyZoom(newVal);
+        };
+        zoomOutBtn.onclick = () => {
+            let newVal = Math.max(parseFloat(zoomSlider.min), parseFloat(zoomSlider.value) - 0.2);
+            zoomSlider.value = newVal;
+            applyZoom(newVal);
+        };
+
         async function startCamera() {
             const height = parseInt(resSelect.value);
             const constraints = {
@@ -297,8 +340,22 @@
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
-                cameraOffMsg.classList.add('hidden');
+                videoTrack = stream.getVideoTracks()[0];
                 
+                // Periksa jika peranti sokong Zoom
+                const capabilities = videoTrack.getCapabilities();
+                if (capabilities.zoom) {
+                    zoomControlContainer.classList.remove('hidden');
+                    zoomSlider.min = capabilities.zoom.min;
+                    zoomSlider.max = capabilities.zoom.max;
+                    zoomSlider.step = capabilities.zoom.step || 0.1;
+                    zoomSlider.value = capabilities.zoom.min;
+                    zoomValDisplay.innerText = capabilities.zoom.min.toFixed(1);
+                } else {
+                    zoomControlContainer.classList.add('hidden');
+                }
+
+                cameraOffMsg.classList.add('hidden');
                 await video.play();
                 
                 canvas.width = video.videoWidth;
@@ -317,8 +374,10 @@
                 stream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
                 stream = null;
+                videoTrack = null;
             }
             cameraOffMsg.classList.remove('hidden');
+            zoomControlContainer.classList.add('hidden');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             drawStaticPreview();
         }
@@ -421,8 +480,13 @@
         }
 
         startBtn.onclick = async () => {
-            const success = await startCamera();
-            if (!success) return;
+            // Aktifkan kamera untuk setup sebelum rakaman jika belum aktif
+            if (!stream) {
+                const success = await startCamera();
+                if (!success) return;
+                showToast("Sila laras zoom dan latar belakang sekarang.");
+                return; // Tunggu user tekan kali kedua untuk mula rakaman sebenar
+            }
 
             recordedChunks = [];
             const canvasStream = canvas.captureStream(30);
@@ -458,6 +522,10 @@
             startBtn.disabled = true;
             stopBtn.disabled = false;
             resetBtn.disabled = true;
+            zoomControlContainer.classList.add('opacity-50'); // Lock zoom semasa rakaman
+            zoomSlider.disabled = true;
+            zoomInBtn.disabled = true;
+            zoomOutBtn.disabled = true;
             recordingStatus.classList.remove('hidden');
             showToast("Rakaman bermula...");
         };
@@ -470,27 +538,24 @@
             startBtn.disabled = false;
             stopBtn.disabled = true;
             resetBtn.disabled = false;
+            zoomSlider.disabled = false;
+            zoomInBtn.disabled = false;
+            zoomOutBtn.disabled = false;
+            zoomControlContainer.classList.remove('opacity-50');
             recordingStatus.classList.add('hidden');
             showToast("Kamera ditutup & rakaman tamat.");
         };
 
         resetBtn.onclick = () => {
-            // 1. Berhenti Kamera & Rakaman
             if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
             stopCamera();
-            
-            // 2. Reset Teks & Scroll
             resetScroll();
             textInput.value = "";
             prompterText.innerText = "Sila masukkan teks anda di ruangan bawah...";
-            
-            // 3. Reset Latar Belakang
             bgImage = null;
             bgColor = null;
             bgUpload.value = '';
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // 4. Reset UI & Timer
             timerDisplay.classList.add('hidden');
             timerDisplay.innerText = "00:00:00";
             recordedChunks = [];
@@ -498,7 +563,6 @@
             startBtn.disabled = false;
             stopBtn.disabled = true;
             recordingStatus.classList.add('hidden');
-            
             showToast("Semua tetapan telah di-reset.");
         };
 
